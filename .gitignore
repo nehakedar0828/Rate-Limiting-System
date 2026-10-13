@@ -1,0 +1,21 @@
+# Build & Compiled Output
+out/
+bin/
+target/
+*.class
+
+# IDE & Editor Metadata
+.idea/
+*.iml
+.vscode/
+.settings/
+.project
+.classpath
+
+# Operating System Files
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# Logs & Temporary Files
+*.log
