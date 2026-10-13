@@ -181,12 +181,23 @@ In production systems where this burst profile is problematic, **Sliding Window 
 
 ## Project Structure
 
+RateGuard is organized into a clean **Controller–Service–Model–View (CSMV)** architecture:
+
 ```text
 RateGuard/
 ├── src/
-│   └── RateGuard.java      # Complete server, rate limiter, and HTTP handlers
-├── README.md               # Complete project documentation and guide
-└── .gitignore              # Build and IDE artifact ignore rules
+│   ├── model/
+│   │   └── RateLimiterModel.java      # Client rate-limit state & evaluation record (19 lines)
+│   ├── service/
+│   │   └── RateLimiterService.java    # Fixed Window algorithm & thread-safe map (52 lines)
+│   ├── view/
+│   │   └── RateLimiterView.java       # HTTP headers, status codes & JSON rendering (48 lines)
+│   ├── controller/
+│   │   └── RateLimiterController.java # Request routing & header validation (52 lines)
+│   ├── Main.java                      # Server startup & component wiring (42 lines)
+│   └── RateGuard.java                 # Standalone single-file reference/backup
+├── README.md                          # Complete project documentation and guide
+└── .gitignore                         # Build and IDE artifact ignore rules
 ```
 
 ---
@@ -211,18 +222,18 @@ javac 17.x.x (or 21.x / 23.x)
 
 ## Installation and Execution
 
-### 1. Compile the Application
+### 1. Compile the Layered Application
 
 From the project root directory:
 
-```bash
-javac -d out src/RateGuard.java
+```powershell
+javac -d out src\Main.java src\model\RateLimiterModel.java src\service\RateLimiterService.java src\view\RateLimiterView.java src\controller\RateLimiterController.java
 ```
 
 ### 2. Run the Server
 
-```bash
-java -cp out RateGuard
+```powershell
+java -cp out Main
 ```
 
 ### Server Startup Banner:
