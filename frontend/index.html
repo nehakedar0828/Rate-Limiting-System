@@ -42,6 +42,23 @@
           </svg>
           Check /health
         </button>
+        <button id="themeToggle" class="btn btn-secondary btn-sm theme-toggle-btn" type="button" aria-label="Switch to light mode" title="Toggle theme (Dark / Light)">
+          <svg class="theme-icon theme-icon-sun" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+            <circle cx="12" cy="12" r="5"></circle>
+            <line x1="12" y1="1" x2="12" y2="3"></line>
+            <line x1="12" y1="21" x2="12" y2="23"></line>
+            <line x1="4.22" y1="4.22" x2="5.64" y2="5.64"></line>
+            <line x1="18.36" y1="18.36" x2="19.78" y2="19.78"></line>
+            <line x1="1" y1="12" x2="3" y2="12"></line>
+            <line x1="21" y1="12" x2="23" y2="12"></line>
+            <line x1="4.22" y1="19.78" x2="5.64" y2="18.36"></line>
+            <line x1="18.36" y1="5.64" x2="19.78" y2="4.22"></line>
+          </svg>
+          <svg class="theme-icon theme-icon-moon" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+            <path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"></path>
+          </svg>
+          <span id="themeToggleText">Light</span>
+        </button>
       </div>
     </header>
 
@@ -359,6 +376,17 @@
             <input type="text" id="filterClient" class="form-control form-control-sm" placeholder="Filter by Client ID..." aria-label="Filter logs by Client ID">
           </div>
 
+          <!-- Page Size Selector -->
+          <div class="filter-item">
+            <label for="pageSizeSelect" class="filter-label">Page Size:</label>
+            <select id="pageSizeSelect" class="form-select form-select-sm" aria-label="Requests per page">
+              <option value="10" selected>10 requests per page</option>
+              <option value="25">25 requests per page</option>
+              <option value="50">50 requests per page</option>
+              <option value="100">100 requests per page</option>
+            </select>
+          </div>
+
           <!-- Export Actions Group -->
           <div class="export-btn-group">
             <button type="button" id="btnExportAllLogs" class="btn btn-export btn-sm" title="Download all recorded requests as a CSV file compatible with Microsoft Excel">
@@ -428,6 +456,30 @@
           </tbody>
         </table>
       </div>
+
+      <!-- Request History Pagination Controls -->
+      <nav class="history-pagination" id="historyPagination" aria-label="Request history pagination">
+        <div class="pagination-info" id="pageRangeText" aria-live="polite">Showing 0 requests</div>
+        <div class="pagination-controls">
+          <button type="button" id="btnFirstPage" class="btn btn-secondary btn-sm btn-page" title="First page" aria-label="Go to first page" disabled>
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="11 17 6 12 11 7"></polyline><polyline points="18 17 13 12 18 7"></polyline></svg>
+            <span class="page-btn-text">First</span>
+          </button>
+          <button type="button" id="btnPrevPage" class="btn btn-secondary btn-sm btn-page" title="Previous page" aria-label="Go to previous page" disabled>
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="15 18 9 12 15 6"></polyline></svg>
+            <span class="page-btn-text">Prev</span>
+          </button>
+          <span class="page-indicator" id="pageIndicator" aria-live="polite">Page 1 of 1</span>
+          <button type="button" id="btnNextPage" class="btn btn-secondary btn-sm btn-page" title="Next page" aria-label="Go to next page" disabled>
+            <span class="page-btn-text">Next</span>
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="9 18 15 12 9 6"></polyline></svg>
+          </button>
+          <button type="button" id="btnLastPage" class="btn btn-secondary btn-sm btn-page" title="Last page" aria-label="Go to last page" disabled>
+            <span class="page-btn-text">Last</span>
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="13 17 18 12 13 7"></polyline><polyline points="6 17 11 12 6 7"></polyline></svg>
+          </button>
+        </div>
+      </nav>
 
       <div class="card-footer-note">
         <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><line x1="12" y1="16" x2="12" y2="12"/><line x1="12" y1="8" x2="12.01" y2="8"/></svg>

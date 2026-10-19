@@ -1,11 +1,15 @@
 /**
  * RateGuard — API Rate Limiting Dashboard
  * Interactive frontend for Core Java Fixed Window Rate Limiter
- * Zero dependencies, Vanilla JavaScript, Safe DOM manipulation, CSV Export.
+ * Zero dependencies, Vanilla JavaScript, Safe DOM manipulation, CSV Export,
+ * Client-Side Pagination, and Persistent Dark/Light Theme System.
  */
 
 (function () {
   'use strict';
+
+  // --- Constants ---
+  const THEME_STORAGE_KEY = 'rateguard_theme';
 
   // --- Application State ---
   const state = {
@@ -19,7 +23,14 @@
     requestHistory: [], // Holds all immutable record objects in chronological order (oldest -> newest)
     isBatchRunning: false,
     stopBatchRequested: false,
-    countdownTimerId: null
+    countdownTimerId: null,
+
+    // Feature 1 & 4: Pagination State
+    currentPage: 1,
+    pageSize: 10,
+
+    // Feature 2: Theme State
+    currentTheme: 'dark'
   };
 
   // --- DOM Element References ---
@@ -32,6 +43,10 @@
     healthDot: document.getElementById('healthDot'),
     healthText: document.getElementById('healthText'),
     btnHealth: document.getElementById('btnHealth'),
+
+    // Theme Toggle
+    themeToggle: document.getElementById('themeToggle'),
+    themeToggleText: document.getElementById('themeToggleText'),
 
     // Policy & Metrics
     statTotal: document.getElementById('statTotal'),
@@ -79,7 +94,7 @@
     responseBodyViewer: document.getElementById('responseBodyViewer'),
     btnCopyJson: document.getElementById('btnCopyJson'),
 
-    // History & Export
+    // History, Filters & Export
     filterStatus: document.getElementById('filterStatus'),
     filterClient: document.getElementById('filterClient'),
     btnExportAllLogs: document.getElementById('btnExportAllLogs'),
@@ -88,7 +103,16 @@
     historyCounter: document.getElementById('historyCounter'),
     historyTableBody: document.getElementById('historyTableBody'),
     emptyHistoryRow: document.getElementById('emptyHistoryRow'),
-    emptyFilteredRow: document.getElementById('emptyFilteredRow')
+    emptyFilteredRow: document.getElementById('emptyFilteredRow'),
+
+    // Pagination Controls
+    pageSizeSelect: document.getElementById('pageSizeSelect'),
+    pageRangeText: document.getElementById('pageRangeText'),
+    pageIndicator: document.getElementById('pageIndicator'),
+    btnFirstPage: document.getElementById('btnFirstPage'),
+    btnPrevPage: document.getElementById('btnPrevPage'),
+    btnNextPage: document.getElementById('btnNextPage'),
+    btnLastPage: document.getElementById('btnLastPage')
   };
 
   // --- Utility Functions ---
@@ -129,7 +153,7 @@
     }
   }
 
-  // Toast Notification System
+  // --- Toast Notification System ---
   function showToast(message, type = 'info', durationMs = 3500) {
     if (!elements.toastContainer) return;
     const toast = document.createElement('div');
@@ -143,6 +167,45 @@
       toast.style.transition = 'all 0.25s ease';
       setTimeout(() => toast.remove(), 250);
     }, durationMs);
+  }
+
+  // --- Feature 2: Dark/Light Mode Theme System ---
+
+  function applyTheme(theme) {
+    state.currentTheme = theme;
+    document.documentElement.setAttribute('data-theme', theme);
+
+    try {
+      localStorage.setItem(THEME_STORAGE_KEY, theme);
+    } catch (_) {
+      // LocalStorage unavailable (e.g. sandboxed iframe or private mode)
+    }
+
+    if (elements.themeToggle) {
+      const isDark = theme === 'dark';
+      elements.themeToggle.setAttribute('aria-label', isDark ? 'Switch to light mode' : 'Switch to dark mode');
+      elements.themeToggle.title = isDark ? 'Switch to light mode' : 'Switch to dark mode';
+      if (elements.themeToggleText) {
+        setText(elements.themeToggleText, isDark ? 'Light' : 'Dark');
+      }
+    }
+  }
+
+  function toggleTheme() {
+    const nextTheme = state.currentTheme === 'dark' ? 'light' : 'dark';
+    applyTheme(nextTheme);
+    showToast(`Switched to ${nextTheme === 'dark' ? 'Dark' : 'Light'} theme`, 'info', 1800);
+  }
+
+  function initTheme() {
+    let savedTheme = 'dark'; // Dark mode default for first-time visitors
+    try {
+      const stored = localStorage.getItem(THEME_STORAGE_KEY);
+      if (stored === 'light' || stored === 'dark') {
+        savedTheme = stored;
+      }
+    } catch (_) {}
+    applyTheme(savedTheme);
   }
 
   // --- Client Validation Feedback ---
@@ -315,10 +378,10 @@
     }
   }
 
-  // --- Statistics Calculation (Feature 4) ---
+  // --- Statistics Calculation ---
 
   function recordAndRecalculateStats(record) {
-    // Append immutable record to in-memory history
+    // Append immutable record to in-memory history (chronological order)
     state.requestHistory.push(record);
 
     // Update counters accurately based on mutually exclusive status categories
@@ -403,8 +466,49 @@
     }
   }
 
-  // --- Request History Table Rendering (Feature 3) ---
+  // --- Feature 1 & 4: Single Data Flow for Filtering & Pagination ---
 
+  /**
+   * Filters state.requestHistory according to active filter criteria.
+   * @param {boolean} reverse - If true, returns newest records first (for table rendering).
+   *                            If false, returns chronological order (for CSV exports).
+   */
+  function getFilteredRecords(reverse = true) {
+    const statusFilter = elements.filterStatus ? elements.filterStatus.value : 'ALL';
+    const clientFilter = elements.filterClient ? elements.filterClient.value.trim().toLowerCase() : '';
+
+    const matches = state.requestHistory.filter(rec => {
+      const statusStr = String(rec.status);
+
+      // Match Status Filter
+      let matchStatus = false;
+      if (statusFilter === 'ALL') {
+        matchStatus = true;
+      } else if (statusFilter === '200' && statusStr === '200') {
+        matchStatus = true;
+      } else if (statusFilter === '429' && statusStr === '429') {
+        matchStatus = true;
+      } else if (statusFilter === '4XX' && (rec.statusCategory === 'CLIENT_ERROR' || (statusStr.startsWith('4') && statusStr !== '429'))) {
+        matchStatus = true;
+      } else if (statusFilter === '5XX' && (rec.statusCategory === 'SERVER_ERROR' || rec.statusCategory === 'NETWORK_ERROR' || statusStr.startsWith('5') || statusStr === '0')) {
+        matchStatus = true;
+      }
+
+      // Match Client Filter
+      let matchClient = true;
+      if (clientFilter.length > 0) {
+        matchClient = (rec.rawClientId || '').toLowerCase().includes(clientFilter);
+      }
+
+      return matchStatus && matchClient;
+    });
+
+    return reverse ? matches.slice().reverse() : matches;
+  }
+
+  /**
+   * Renders a single <tr> row for a request record.
+   */
   function renderHistoryRow(record) {
     const tr = document.createElement('tr');
     tr.dataset.status = String(record.status);
@@ -479,85 +583,104 @@
     return tr;
   }
 
-  function appendHistoryRow(record) {
-    const tr = renderHistoryRow(record);
+  /**
+   * Main Render Pipeline for History Table & Pagination Controls:
+   * 1. Preserves all recorded entries in state.requestHistory.
+   * 2. Applies active status and client filters.
+   * 3. Calculates total pages based on selected page size.
+   * 4. Clamps current page within valid range.
+   * 5. Slices and renders only records for the current page.
+   * 6. Updates page indicator, visible range, and button states.
+   */
+  function renderHistory() {
+    const totalRecords = state.requestHistory.length;
+    const filteredRecords = getFilteredRecords(true); // newest first for display
+    const filteredCount = filteredRecords.length;
 
-    // Insert newest requests first (top of table)
-    const firstRow = elements.historyTableBody.querySelector('tr:not(.empty-row)');
-    if (firstRow) {
-      elements.historyTableBody.insertBefore(tr, firstRow);
-    } else {
-      // Insert before empty rows
-      elements.historyTableBody.insertBefore(tr, elements.historyTableBody.firstChild);
+    // Calculate total pages
+    const totalPages = filteredCount > 0 ? Math.ceil(filteredCount / state.pageSize) : 1;
+
+    // Correct current page if it exceeds available range
+    if (state.currentPage > totalPages) {
+      state.currentPage = totalPages;
+    }
+    if (state.currentPage < 1) {
+      state.currentPage = 1;
     }
 
-    applyFilters();
-  }
+    // Remove existing rendered request rows (leaving empty-state rows intact)
+    const existingRows = elements.historyTableBody.querySelectorAll('tr:not(.empty-row)');
+    existingRows.forEach(row => row.remove());
 
-  function applyFilters() {
-    const statusFilter = elements.filterStatus ? elements.filterStatus.value : 'ALL';
-    const clientFilter = elements.filterClient ? elements.filterClient.value.trim().toLowerCase() : '';
-
-    const rows = elements.historyTableBody.querySelectorAll('tr:not(.empty-row)');
-    let visibleCount = 0;
-
-    rows.forEach(row => {
-      const rowStatus = row.dataset.status;
-      const rowCategory = row.dataset.category;
-      const rowClient = row.dataset.clientId || '';
-
-      // Match Status
-      let matchStatus = false;
-      if (statusFilter === 'ALL') {
-        matchStatus = true;
-      } else if (statusFilter === '200' && rowStatus === '200') {
-        matchStatus = true;
-      } else if (statusFilter === '429' && rowStatus === '429') {
-        matchStatus = true;
-      } else if (statusFilter === '4XX' && (rowCategory === 'CLIENT_ERROR' || (rowStatus.startsWith('4') && rowStatus !== '429'))) {
-        matchStatus = true;
-      } else if (statusFilter === '5XX' && (rowCategory === 'SERVER_ERROR' || rowCategory === 'NETWORK_ERROR' || rowStatus.startsWith('5') || rowStatus === '0')) {
-        matchStatus = true;
-      }
-
-      // Match Client
-      let matchClient = true;
-      if (clientFilter.length > 0) {
-        matchClient = rowClient.includes(clientFilter);
-      }
-
-      if (matchStatus && matchClient) {
-        row.style.display = '';
-        visibleCount++;
-      } else {
-        row.style.display = 'none';
-      }
-    });
-
-    // Handle Empty States
-    const totalRecords = state.requestHistory.length;
+    // Case A: No records exist at all
     if (totalRecords === 0) {
       if (elements.emptyHistoryRow) elements.emptyHistoryRow.style.display = '';
       if (elements.emptyFilteredRow) elements.emptyFilteredRow.style.display = 'none';
       setText(elements.historyCounter, '0 records');
-    } else {
-      if (elements.emptyHistoryRow) elements.emptyHistoryRow.style.display = 'none';
-
-      if (visibleCount === 0) {
-        if (elements.emptyFilteredRow) elements.emptyFilteredRow.style.display = '';
-        setText(elements.historyCounter, `0 of ${totalRecords} records`);
-      } else {
-        if (elements.emptyFilteredRow) elements.emptyFilteredRow.style.display = 'none';
-        if (visibleCount === totalRecords) {
-          setText(elements.historyCounter, `${totalRecords} record${totalRecords === 1 ? '' : 's'}`);
-        } else {
-          setText(elements.historyCounter, `Showing ${visibleCount} of ${totalRecords} records`);
-        }
-      }
+      setText(elements.pageIndicator, 'Page 1 of 1');
+      setText(elements.pageRangeText, 'Showing 0 requests');
+      if (elements.btnFirstPage) elements.btnFirstPage.disabled = true;
+      if (elements.btnPrevPage) elements.btnPrevPage.disabled = true;
+      if (elements.btnNextPage) elements.btnNextPage.disabled = true;
+      if (elements.btnLastPage) elements.btnLastPage.disabled = true;
+      return;
     }
+
+    if (elements.emptyHistoryRow) elements.emptyHistoryRow.style.display = 'none';
+
+    // Case B: Records exist, but none match the active filters
+    if (filteredCount === 0) {
+      if (elements.emptyFilteredRow) elements.emptyFilteredRow.style.display = '';
+      setText(elements.historyCounter, `0 of ${totalRecords} records`);
+      setText(elements.pageIndicator, 'Page 1 of 1');
+      setText(elements.pageRangeText, `Showing 0 of ${totalRecords} requests`);
+      if (elements.btnFirstPage) elements.btnFirstPage.disabled = true;
+      if (elements.btnPrevPage) elements.btnPrevPage.disabled = true;
+      if (elements.btnNextPage) elements.btnNextPage.disabled = true;
+      if (elements.btnLastPage) elements.btnLastPage.disabled = true;
+      return;
+    }
+
+    // Case C: Matching records exist
+    if (elements.emptyFilteredRow) elements.emptyFilteredRow.style.display = 'none';
+
+    // Header counter text
+    if (filteredCount === totalRecords) {
+      setText(elements.historyCounter, `${totalRecords} record${totalRecords === 1 ? '' : 's'}`);
+    } else {
+      setText(elements.historyCounter, `Showing ${filteredCount} of ${totalRecords} records`);
+    }
+
+    // Determine current page slice bounds
+    const startIndex = (state.currentPage - 1) * state.pageSize;
+    const endIndex = Math.min(startIndex + state.pageSize, filteredCount);
+    const pageRecords = filteredRecords.slice(startIndex, endIndex);
+
+    // Render rows for current page in bulk using DocumentFragment
+    const fragment = document.createDocumentFragment();
+    pageRecords.forEach(rec => {
+      fragment.appendChild(renderHistoryRow(rec));
+    });
+
+    // Insert before the empty state placeholders in tbody
+    elements.historyTableBody.insertBefore(fragment, elements.emptyHistoryRow);
+
+    // Update visible range: e.g. "Showing 11–20 of 78 requests"
+    const displayStart = startIndex + 1;
+    const displayEnd = endIndex;
+    setText(elements.pageRangeText, `Showing ${displayStart}–${displayEnd} of ${filteredCount} requests`);
+
+    // Update current page indicator: e.g. "Page 2 of 8"
+    setText(elements.pageIndicator, `Page ${state.currentPage} of ${totalPages}`);
+
+    // Update First/Prev/Next/Last button disabled states
+    if (elements.btnFirstPage) elements.btnFirstPage.disabled = (state.currentPage <= 1);
+    if (elements.btnPrevPage) elements.btnPrevPage.disabled = (state.currentPage <= 1);
+    if (elements.btnNextPage) elements.btnNextPage.disabled = (state.currentPage >= totalPages);
+    if (elements.btnLastPage) elements.btnLastPage.disabled = (state.currentPage >= totalPages);
   }
 
-  // --- CSV Export Generation (Feature 1) ---
+  // --- Feature 5: CSV Export Generation ---
 
   /**
    * Sanitizes a single CSV cell value:
@@ -646,7 +769,7 @@
   }
 
   /**
-   * Exports all recorded requests regardless of the currently selected status or client filter.
+   * Exports all recorded requests across ALL pages regardless of current page or filters.
    */
   function handleExportAllLogs() {
     if (state.requestHistory.length === 0) {
@@ -663,7 +786,7 @@
   }
 
   /**
-   * Exports only the currently visible filtered requests.
+   * Exports only the requests matching active filters across ALL pages, not just the visible page.
    */
   function handleExportFilteredLogs() {
     if (state.requestHistory.length === 0) {
@@ -671,31 +794,8 @@
       return;
     }
 
-    const statusFilter = elements.filterStatus ? elements.filterStatus.value : 'ALL';
-    const clientFilter = elements.filterClient ? elements.filterClient.value.trim().toLowerCase() : '';
-
-    const filteredRecords = state.requestHistory.filter(rec => {
-      const statusStr = String(rec.status);
-      let matchStatus = false;
-      if (statusFilter === 'ALL') {
-        matchStatus = true;
-      } else if (statusFilter === '200' && statusStr === '200') {
-        matchStatus = true;
-      } else if (statusFilter === '429' && statusStr === '429') {
-        matchStatus = true;
-      } else if (statusFilter === '4XX' && (rec.statusCategory === 'CLIENT_ERROR' || (statusStr.startsWith('4') && statusStr !== '429'))) {
-        matchStatus = true;
-      } else if (statusFilter === '5XX' && (rec.statusCategory === 'SERVER_ERROR' || rec.statusCategory === 'NETWORK_ERROR' || statusStr.startsWith('5') || statusStr === '0')) {
-        matchStatus = true;
-      }
-
-      let matchClient = true;
-      if (clientFilter.length > 0) {
-        matchClient = (rec.rawClientId || '').toLowerCase().includes(clientFilter);
-      }
-
-      return matchStatus && matchClient;
-    });
+    // Get all matching records in chronological order for CSV
+    const filteredRecords = getFilteredRecords(false);
 
     if (filteredRecords.length === 0) {
       showToast('No records match the current filter criteria to export.', 'warning');
@@ -755,7 +855,7 @@
       const record = await executeApiRequest('/api', clientId);
       recordAndRecalculateStats(record);
       updateInspector(record);
-      appendHistoryRow(record);
+      renderHistory(); // Re-render table keeping current page valid
     } finally {
       elements.btnSendSingle.disabled = false;
       elements.singleSpinner.classList.remove('active');
@@ -803,7 +903,7 @@
       const record = await executeApiRequest('/api', clientId);
       recordAndRecalculateStats(record);
       updateInspector(record);
-      appendHistoryRow(record);
+      renderHistory();
 
       if (i < count && !state.stopBatchRequested && delay > 0) {
         await sleep(delay);
@@ -852,11 +952,7 @@
   }
 
   function handleClearHistory() {
-    // Clear log rows while preserving empty row placeholders
-    const rows = elements.historyTableBody.querySelectorAll('tr:not(.empty-row)');
-    rows.forEach(r => r.remove());
-
-    // Reset state & stats
+    // Clear in-memory history & reset counters
     state.requestHistory = [];
     state.totalRequests = 0;
     state.successfulRequests = 0;
@@ -866,7 +962,10 @@
     state.networkErrors = 0;
     state.totalLatencyMs = 0;
 
-    // Update UI elements
+    // Reset pagination to page 1
+    state.currentPage = 1;
+
+    // Update UI metric cards
     setText(elements.statTotal, '0');
     setText(elements.statSuccess, '0');
     setText(elements.statRateLimited, '0');
@@ -882,7 +981,7 @@
       elements.countdownBanner.classList.remove('active');
     }
 
-    applyFilters();
+    renderHistory();
     showToast('Browser request history and local statistics cleared.', 'info');
   }
 
@@ -908,6 +1007,11 @@
     elements.btnStopBatch.addEventListener('click', handleStopBatch);
     elements.btnHealth.addEventListener('click', handleHealthCheck);
 
+    // Theme Toggle
+    if (elements.themeToggle) {
+      elements.themeToggle.addEventListener('click', toggleTheme);
+    }
+
     // Export & History actions
     if (elements.btnExportAllLogs) {
       elements.btnExportAllLogs.addEventListener('click', handleExportAllLogs);
@@ -917,12 +1021,68 @@
     }
     elements.btnClearHistory.addEventListener('click', handleClearHistory);
 
-    // Filters
+    // Filters: reset to page 1 on filter changes
     if (elements.filterStatus) {
-      elements.filterStatus.addEventListener('change', applyFilters);
+      elements.filterStatus.addEventListener('change', () => {
+        state.currentPage = 1;
+        renderHistory();
+      });
     }
     if (elements.filterClient) {
-      elements.filterClient.addEventListener('input', applyFilters);
+      elements.filterClient.addEventListener('input', () => {
+        state.currentPage = 1;
+        renderHistory();
+      });
+    }
+
+    // Pagination: Page Size Selector
+    if (elements.pageSizeSelect) {
+      elements.pageSizeSelect.addEventListener('change', () => {
+        state.pageSize = parseInt(elements.pageSizeSelect.value, 10) || 10;
+        state.currentPage = 1;
+        renderHistory();
+      });
+    }
+
+    // Pagination: Navigation Controls
+    if (elements.btnFirstPage) {
+      elements.btnFirstPage.addEventListener('click', () => {
+        if (state.currentPage > 1) {
+          state.currentPage = 1;
+          renderHistory();
+        }
+      });
+    }
+
+    if (elements.btnPrevPage) {
+      elements.btnPrevPage.addEventListener('click', () => {
+        if (state.currentPage > 1) {
+          state.currentPage--;
+          renderHistory();
+        }
+      });
+    }
+
+    if (elements.btnNextPage) {
+      elements.btnNextPage.addEventListener('click', () => {
+        const filteredCount = getFilteredRecords(false).length;
+        const totalPages = Math.max(1, Math.ceil(filteredCount / state.pageSize));
+        if (state.currentPage < totalPages) {
+          state.currentPage++;
+          renderHistory();
+        }
+      });
+    }
+
+    if (elements.btnLastPage) {
+      elements.btnLastPage.addEventListener('click', () => {
+        const filteredCount = getFilteredRecords(false).length;
+        const totalPages = Math.max(1, Math.ceil(filteredCount / state.pageSize));
+        if (state.currentPage !== totalPages) {
+          state.currentPage = totalPages;
+          renderHistory();
+        }
+      });
     }
 
     // JSON Copy
@@ -964,8 +1124,10 @@
       setText(elements.delayVal, `${e.target.value} ms`);
     });
 
-    // Initial validation check
+    // Initial state setup
+    initTheme();
     updateClientValidation();
+    renderHistory();
 
     // Auto-ping server health on page load
     handleHealthCheck();

@@ -423,6 +423,38 @@ The frontend is implemented in vanilla **HTML5, CSS3, and JavaScript** with zero
 - Formats the raw backend JSON body with syntax-clean indentation.
 - Includes a **"Copy JSON"** button to copy payloads directly to the clipboard.
 
+#### E. Dark / Light Mode Theme System
+- **Header Sun/Moon Toggle**: Switch between dark and light themes instantly via the header toggle button.
+- **Dark Mode by Default**: First-time visitors are presented with the sleek dark observability theme.
+- **Theme Persistence**: Theme preference is persisted in browser `localStorage` (`rateguard_theme`) and automatically restored upon subsequent visits or page reloads.
+- **Consistent Tokens**: Built with CSS custom properties (`--bg-*`, `--text-*`, `--border-*`, `--color-*`) ensuring tables, buttons, inputs, inspector cards, countdown banners, and status badges maintain optimal contrast in both themes.
+- **Accessibility & Motion**: Fully respects user `prefers-reduced-motion` settings and provides clear `:focus-visible` keyboard focus indicators.
+
+#### F. Request History Client-Side Pagination
+- **Configurable Page Sizes**:
+  - `10 requests per page` (default)
+  - `25 requests per page`
+  - `50 requests per page`
+  - `100 requests per page`
+- **Navigation Controls**:
+  - **First Page**: Jumps directly to page 1. Disabled on page 1.
+  - **Previous Page**: Navigates to the preceding page. Disabled on page 1.
+  - **Page Indicator**: Displays the current position and total pages (`Page X of Y`).
+  - **Next Page**: Advances to the following page. Disabled on the last page.
+  - **Last Page**: Jumps directly to the final page. Disabled on the last page.
+  - **Visible Range**: Displays exact record boundaries (e.g., `Showing 11–20 of 78 requests`, or `Showing 0 requests` when empty).
+- **Single Data Flow (Filtering & Pagination)**:
+  1. Complete immutable request history is preserved in browser memory.
+  2. Active HTTP status and Client ID filters are applied across the entire history.
+  3. Total filtered count and total pages are calculated dynamically.
+  4. Changing any filter or changing the page size automatically resets the view to Page 1.
+  5. As new requests arrive (single or batch), records are rendered newest first, the current page remains valid, and no older records are lost.
+  6. Clearing the audit log resets pagination back to Page 1.
+- **Interaction with CSV Exports**:
+  - **Export All Logs**: Exports the complete recorded request history across **all pages**, completely independent of pagination state.
+  - **Export Filtered Logs**: Exports **all records matching active filters across all pages**, not just the visible page.
+  - Pagination solely affects table row rendering and never truncates, caps, or deletes records.
+
 ---
 
 ### 3. Downloadable Request Logs & CSV Export
