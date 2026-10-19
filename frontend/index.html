@@ -1,0 +1,375 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>RateGuard — API Rate Limiting Playground</title>
+  <meta name="description" content="Interactive testing dashboard for RateGuard, a pure Java real-time fixed-window API rate limiter.">
+  <link rel="stylesheet" href="style.css">
+  <link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 24 24%22 fill=%22%233b82f6%22><path d=%22M12 2L3 7v6c0 5.55 3.84 10.74 9 12 5.16-1.26 9-6.45 9-12V7l-9-5z%22/></svg>">
+</head>
+<body>
+  <div class="app-layout">
+    <!-- Header -->
+    <header class="app-header">
+      <div class="header-left">
+        <div class="logo-shield">
+          <svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/>
+            <path d="m9 12 2 2 4-4"/>
+          </svg>
+        </div>
+        <div>
+          <h1 class="app-title">RateGuard — API Rate Limiting Playground</h1>
+          <p class="app-subtitle">Interactive Real-Time Fixed Window Testing Dashboard</p>
+        </div>
+      </div>
+      <div class="header-right">
+        <div class="health-pill" id="healthPill" title="Server Health Status">
+          <span class="health-dot" id="healthDot"></span>
+          <span class="health-text" id="healthText">Health: Unknown</span>
+        </div>
+        <button id="btnHealth" class="btn btn-secondary btn-sm" type="button" title="Query /health endpoint">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/>
+          </svg>
+          Check /health
+        </button>
+      </div>
+    </header>
+
+    <!-- System Spec Banner -->
+    <section class="banner-policy" aria-label="Backend Rate Limiter Configuration">
+      <div class="policy-item">
+        <span class="policy-label">ALGORITHM</span>
+        <span class="policy-val">Fixed Window Counter</span>
+      </div>
+      <div class="policy-divider"></div>
+      <div class="policy-item">
+        <span class="policy-label">RATE LIMIT</span>
+        <span class="policy-val highlight">5 Requests</span>
+      </div>
+      <div class="policy-divider"></div>
+      <div class="policy-item">
+        <span class="policy-label">WINDOW SIZE</span>
+        <span class="policy-val highlight">10 Seconds</span>
+      </div>
+      <div class="policy-divider"></div>
+      <div class="policy-item">
+        <span class="policy-label">CLIENT IDENTIFIER</span>
+        <span class="policy-val">Header: <code>X-Client-ID</code></span>
+      </div>
+      <div class="policy-divider"></div>
+      <div class="policy-item">
+        <span class="policy-label">TARGET ENDPOINT</span>
+        <span class="policy-val"><code>GET /api</code></span>
+      </div>
+    </section>
+
+    <!-- Metric Statistics Grid -->
+    <section class="metrics-grid" aria-label="Live Statistics">
+      <div class="metric-card">
+        <div class="metric-icon icon-total">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 12h-4l-3 9L9 3l-3 9H2"/></svg>
+        </div>
+        <div class="metric-content">
+          <span class="metric-num" id="statTotal">0</span>
+          <span class="metric-desc">Total Requests Sent</span>
+        </div>
+      </div>
+
+      <div class="metric-card">
+        <div class="metric-icon icon-success">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="20 6 9 17 4 12"/></svg>
+        </div>
+        <div class="metric-content">
+          <span class="metric-num text-success" id="statSuccess">0</span>
+          <span class="metric-desc">Permitted (200 OK)</span>
+        </div>
+      </div>
+
+      <div class="metric-card">
+        <div class="metric-icon icon-ratelimited">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><line x1="4.93" y1="4.93" x2="19.07" y2="19.07"/></svg>
+        </div>
+        <div class="metric-content">
+          <span class="metric-num text-danger" id="statRateLimited">0</span>
+          <span class="metric-desc">Rate Limited (429)</span>
+        </div>
+      </div>
+
+      <div class="metric-card">
+        <div class="metric-icon icon-errors">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="m21.73 18-8-14a2 2 0 0 0-3.48 0l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.73-3Z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
+        </div>
+        <div class="metric-content">
+          <span class="metric-num text-warning" id="statErrors">0</span>
+          <span class="metric-desc">Other Errors (4xx/5xx)</span>
+        </div>
+      </div>
+
+      <div class="metric-card">
+        <div class="metric-icon icon-quota">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
+        </div>
+        <div class="metric-content">
+          <span class="metric-num text-info" id="statRemainingQuota">—</span>
+          <span class="metric-desc" id="statRemainingDesc">Remaining Quota</span>
+        </div>
+      </div>
+    </section>
+
+    <!-- Main Workspace Split: Controls vs Inspector -->
+    <div class="workspace-grid">
+      <!-- Left Column: Controls -->
+      <section class="card panel-controls" aria-label="Request Dispatcher">
+        <div class="card-header">
+          <h2 class="card-title">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="2" y="3" width="20" height="14" rx="2" ry="2"/><line x1="8" y1="21" x2="16" y2="21"/><line x1="12" y1="17" x2="12" y2="21"/></svg>
+            Client & Request Dispatcher
+          </h2>
+        </div>
+
+        <div class="card-body">
+          <!-- Client ID Selection -->
+          <div class="form-group">
+            <label for="clientIdInput" class="form-label">
+              Client Identifier (<code>X-Client-ID</code> header)
+              <span class="required-mark">*</span>
+            </label>
+            <div class="input-with-presets">
+              <input type="text" id="clientIdInput" class="form-control" placeholder="e.g. alice, bob, payment-service" value="alice" autocomplete="off" spellcheck="false" maxlength="64">
+            </div>
+            <div class="client-presets" aria-label="Client Presets">
+              <span class="presets-label">Quick Client Presets:</span>
+              <button type="button" class="preset-badge" data-client="alice">alice</button>
+              <button type="button" class="preset-badge" data-client="bob">bob</button>
+              <button type="button" class="preset-badge" data-client="charlie">charlie</button>
+              <button type="button" class="preset-badge preset-blank" data-client="" title="Test 400 Bad Request">[Blank Header]</button>
+            </div>
+            <p class="field-hint">Each client ID maintains an independent 5 requests / 10s counter in memory.</p>
+          </div>
+
+          <!-- Single Request Action -->
+          <div class="action-section">
+            <div class="action-header">
+              <span class="action-title">Single Request Test</span>
+              <span class="action-subtitle">Issues one real GET /api call</span>
+            </div>
+            <div class="btn-group">
+              <button type="button" id="btnSendSingle" class="btn btn-primary">
+                <span class="btn-spinner" id="singleSpinner" aria-hidden="true"></span>
+                <span id="btnSendSingleText">Send Request</span>
+                <kbd class="btn-kbd">Enter</kbd>
+              </button>
+            </div>
+          </div>
+
+          <!-- Multiple / Batch Request Action -->
+          <div class="action-section">
+            <div class="action-header">
+              <span class="action-title">Batch / Rapid Request Test</span>
+              <span class="action-subtitle">Send multiple sequential requests to test window thresholds</span>
+            </div>
+
+            <div class="batch-controls">
+              <div class="form-group mb-2">
+                <label for="batchCountInput" class="form-label">Request Count (1 – 100):</label>
+                <div class="batch-input-row">
+                  <input type="number" id="batchCountInput" class="form-control" min="1" max="100" value="6" step="1">
+                  <div class="batch-presets">
+                    <button type="button" class="preset-count" data-count="5" title="Matches exact window quota">5 (Limit)</button>
+                    <button type="button" class="preset-count" data-count="6" title="Triggers 1 rate-limited request">6 (Trigger 429)</button>
+                    <button type="button" class="preset-count" data-count="10" title="Double window quota">10</button>
+                    <button type="button" class="preset-count" data-count="20">20</button>
+                  </div>
+                </div>
+              </div>
+
+              <div class="form-group mb-3">
+                <label for="batchDelayInput" class="form-label">Delay between requests (ms):</label>
+                <div class="range-container">
+                  <input type="range" id="batchDelayInput" min="50" max="1000" step="50" value="150" class="form-range">
+                  <span id="delayVal" class="range-value">150 ms</span>
+                </div>
+              </div>
+
+              <div class="btn-group">
+                <button type="button" id="btnSendBatch" class="btn btn-accent">
+                  <span class="btn-spinner" id="batchSpinner" aria-hidden="true"></span>
+                  <span id="btnSendBatchText">Send Batch Requests</span>
+                </button>
+                <button type="button" id="btnStopBatch" class="btn btn-outline-danger" disabled>
+                  Stop Batch
+                </button>
+              </div>
+
+              <!-- Batch Progress Container -->
+              <div class="batch-progress" id="batchProgressBarContainer">
+                <div class="progress-bar-bg">
+                  <div class="progress-bar-fill" id="batchProgressBarFill"></div>
+                </div>
+                <div class="progress-text" id="batchProgressText">Idle</div>
+              </div>
+            </div>
+          </div>
+
+          <!-- Countdown / Retry-After Timer Banner -->
+          <div class="countdown-banner" id="countdownBanner">
+            <div class="countdown-icon">
+              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
+            </div>
+            <div class="countdown-body">
+              <div class="countdown-title">Active Rate Limit Enforced</div>
+              <div class="countdown-msg" id="countdownMessage">Client is rate-limited. Window resets in approx: <strong id="countdownSeconds">0</strong>s</div>
+            </div>
+          </div>
+
+        </div>
+      </section>
+
+      <!-- Right Column: Live Response Inspector -->
+      <section class="card panel-inspector" aria-label="Latest Response Inspector">
+        <div class="card-header">
+          <h2 class="card-title">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 17l6-6-6-6"/><path d="M12 19h8"/></svg>
+            Live Response Inspector
+          </h2>
+          <div class="inspector-badge" id="latestStatusBadge">Waiting for Request</div>
+        </div>
+
+        <div class="card-body">
+          <!-- Response Summary Bar -->
+          <div class="response-summary-bar">
+            <div class="summary-meta-item">
+              <span class="meta-label">ENDPOINT</span>
+              <span class="meta-val" id="respEndpoint">—</span>
+            </div>
+            <div class="summary-meta-item">
+              <span class="meta-label">STATUS</span>
+              <span class="meta-val" id="respStatusCode">—</span>
+            </div>
+            <div class="summary-meta-item">
+              <span class="meta-label">LATENCY</span>
+              <span class="meta-val" id="respLatency">—</span>
+            </div>
+            <div class="summary-meta-item">
+              <span class="meta-label">TIME</span>
+              <span class="meta-val" id="respTimestamp">—</span>
+            </div>
+          </div>
+
+          <!-- Headers breakdown -->
+          <div class="inspector-section">
+            <div class="section-subheading">Key Response Headers:</div>
+            <div class="headers-grid" id="responseHeadersBox">
+              <div class="header-chip"><code>X-RateLimit-Limit:</code> <span id="hdrLimit">—</span></div>
+              <div class="header-chip"><code>X-RateLimit-Remaining:</code> <span id="hdrRemaining">—</span></div>
+              <div class="header-chip"><code>Retry-After:</code> <span id="hdrRetryAfter">—</span></div>
+              <div class="header-chip"><code>Content-Type:</code> <span id="hdrContentType">—</span></div>
+            </div>
+          </div>
+
+          <!-- JSON Body Box -->
+          <div class="inspector-section">
+            <div class="section-subheading">Response Body (JSON):</div>
+            <pre class="json-viewer" id="responseBodyViewer"><code>// Run a request to inspect the real server response here.</code></pre>
+          </div>
+        </div>
+      </section>
+    </div>
+
+    <!-- Request History Section -->
+    <section class="card panel-history" aria-label="Request History">
+      <div class="card-header history-header">
+        <div class="history-title-wrap">
+          <h2 class="card-title">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 8v4l3 3"/><circle cx="12" cy="12" r="9"/></svg>
+            Request History Log
+          </h2>
+          <span class="history-count" id="historyCounter">0 entries</span>
+        </div>
+        <div class="history-actions">
+          <div class="filter-group">
+            <label for="filterStatus" class="sr-only">Filter by Status</label>
+            <select id="filterStatus" class="form-select form-select-sm">
+              <option value="ALL">All Statuses</option>
+              <option value="200">200 OK Only</option>
+              <option value="429">429 Rate Limited Only</option>
+              <option value="ERROR">Errors (400, 405, Fail)</option>
+            </select>
+          </div>
+          <button type="button" id="btnClearHistory" class="btn btn-secondary btn-sm" title="Clear table and reset frontend counters">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg>
+            Clear Log
+          </button>
+        </div>
+      </div>
+
+      <div class="history-table-container">
+        <table class="history-table" id="historyTable">
+          <thead>
+            <tr>
+              <th scope="col" style="width: 60px;">#</th>
+              <th scope="col" style="width: 110px;">Time</th>
+              <th scope="col" style="width: 140px;">Client ID</th>
+              <th scope="col" style="width: 150px;">Status</th>
+              <th scope="col" style="width: 110px;">Remaining</th>
+              <th scope="col" style="width: 110px;">Latency</th>
+              <th scope="col">Backend Message / Details</th>
+            </tr>
+          </thead>
+          <tbody id="historyTableBody">
+            <tr class="empty-row" id="emptyHistoryRow">
+              <td colspan="7">
+                <div class="empty-state">
+                  <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
+                  <span>No requests logged yet. Use the controls above to start testing RateGuard.</span>
+                </div>
+              </td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+      <div class="card-footer-note">
+        <span>Note: Clearing this log resets client-side counters only. The backend rate-limit state in memory continues to adhere to its 10-second fixed window.</span>
+      </div>
+    </section>
+
+    <!-- Architecture & Behavior Educational Card -->
+    <section class="card panel-info" aria-label="How Rate Limiting Works">
+      <div class="card-header">
+        <h2 class="card-title">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><line x1="12" y1="16" x2="12" y2="12"/><line x1="12" y1="8" x2="12.01" y2="8"/></svg>
+          How Fixed Window Rate Limiting Works in RateGuard
+        </h2>
+      </div>
+      <div class="card-body info-grid">
+        <div class="info-item">
+          <h3 class="info-title">1. Discrete Time Slots</h3>
+          <p class="info-desc">Requests are tallied in fixed 10-second intervals starting from each client's first request arrival measured via <code>System.nanoTime()</code>. Time measurement is monotonic and immune to wall-clock drift.</p>
+        </div>
+        <div class="info-item">
+          <h3 class="info-title">2. Per-Client Isolation</h3>
+          <p class="info-desc">Clients are separated using the <code>X-Client-ID</code> header. If <code>alice</code> exhausts her 5 requests and receives HTTP 429, <code>bob</code> still has all 5 requests available.</p>
+        </div>
+        <div class="info-item">
+          <h3 class="info-title">3. Atomic Window Reset</h3>
+          <p class="info-desc">Once 10 seconds elapse from the window's creation, the next request resets the counter back to 1 and permits the request with <code>200 OK</code> and <code>X-RateLimit-Remaining: 4</code>.</p>
+        </div>
+        <div class="info-item">
+          <h3 class="info-title">4. Boundary Burst Profile</h3>
+          <p class="info-desc">Fixed Window allows up to 5 requests at the end of window 1 (e.g. at 9.9s) and 5 requests at the beginning of window 2 (at 10.1s), permitting 10 requests across a brief 0.2s interval.</p>
+        </div>
+      </div>
+    </section>
+
+    <!-- Footer -->
+    <footer class="app-footer">
+      <p>RateGuard API Rate Limiting System &bull; Pure Core Java Backend &bull; Zero External Dependencies</p>
+    </footer>
+  </div>
+
+  <script src="script.js"></script>
+</body>
+</html>

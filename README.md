@@ -19,11 +19,12 @@ A lightweight, zero-dependency, real-time HTTP API rate limiter built entirely w
 8. [Installation and Execution](#installation-and-execution)
 9. [API Documentation](#api-documentation)
 10. [Testing with curl](#testing-with-curl)
-11. [Sample HTTP Responses](#sample-http-responses)
-12. [Configuration](#configuration)
-13. [Limitations](#limitations)
-14. [Future Enhancements](#future-enhancements)
-15. [Learning Outcomes](#learning-outcomes)
+11. [Web-Based Testing Dashboard (RateGuard Playground)](#web-based-testing-dashboard-rateguard-playground)
+12. [Sample HTTP Responses](#sample-http-responses)
+13. [Configuration](#configuration)
+14. [Limitations](#limitations)
+15. [Future Enhancements](#future-enhancements)
+16. [Learning Outcomes](#learning-outcomes)
 
 ---
 
@@ -181,10 +182,14 @@ In production systems where this burst profile is problematic, **Sliding Window 
 
 ## Project Structure
 
-RateGuard is organized into a clean **Controller–Service–Model–View (CSMV)** architecture:
+RateGuard is organized into a clean **Controller–Service–Model–View (CSMV)** architecture with an isolated web frontend:
 
 ```text
 RateGuard/
+├── frontend/
+│   ├── index.html                     # Responsive testing playground dashboard
+│   ├── style.css                      # Modern developer dark theme & animations
+│   └── script.js                      # Vanilla JavaScript dispatcher & live inspector
 ├── src/
 │   ├── model/
 │   │   └── RateLimiterModel.java      # Client rate-limit state & evaluation record (19 lines)
@@ -194,8 +199,7 @@ RateGuard/
 │   │   └── RateLimiterView.java       # HTTP headers, status codes & JSON rendering (48 lines)
 │   ├── controller/
 │   │   └── RateLimiterController.java # Request routing & header validation (52 lines)
-│   ├── Main.java                      # Server startup & component wiring (42 lines)
-│   └── RateGuard.java                 # Standalone single-file reference/backup
+│   └── Main.java                      # Server startup, static file serving & context wiring (100 lines)
 ├── README.md                          # Complete project documentation and guide
 └── .gitignore                         # Build and IDE artifact ignore rules
 ```
@@ -357,6 +361,83 @@ curl -i -X POST -H "X-Client-ID: alice" http://localhost:8080/api
 
 ---
 
+## Web-Based Testing Dashboard (RateGuard Playground)
+
+RateGuard includes a browser-based developer dashboard located in `frontend/`, allowing users to test and visualize the rate limiter in real time without Postman or curl.
+
+The frontend is built with pure **HTML5, CSS3, and Vanilla JavaScript** (zero external frameworks or node dependencies) and is served directly by the Java `HttpServer` as a same-origin static context at `http://localhost:8080/`.
+
+### 1. How to Start the Server and Open the Dashboard
+
+1. **Compile the Application** (from the project root):
+   ```powershell
+   javac -d out src\model\RateLimiterModel.java src\service\RateLimiterService.java src\view\RateLimiterView.java src\controller\RateLimiterController.java src\Main.java
+   ```
+
+2. **Run the Java Server**:
+   ```powershell
+   java -cp out Main
+   ```
+
+3. **Open the Dashboard**:
+   Navigate to [http://localhost:8080/](http://localhost:8080/) in any modern web browser (Chrome, Edge, Firefox, Safari).
+
+---
+
+### 2. Dashboard Features & How to Test
+
+#### A. Server Health Check
+- Click the **"Check /health"** button in the top navigation bar.
+- The dashboard sends `GET /health` and updates the health status indicator to **"Health: UP (200 OK)"** with a pulsing green indicator.
+- The full JSON payload (`{"status":"UP","message":"RateGuard server is healthy"}`) appears in the **Live Response Inspector**.
+
+#### B. Testing a Single Request (`GET /api`)
+1. Enter a client ID in the **Client Identifier** field (or click one of the quick preset buttons: `alice`, `bob`, `charlie`).
+2. Click **"Send Request"** (or press <kbd>Enter</kbd>).
+3. The dashboard dispatches a real HTTP GET to `/api` with header `X-Client-ID: <id>`.
+4. The button temporarily disables during in-flight communication.
+5. The **Live Statistics**, **Live Response Inspector**, and **Request History Log** immediately update with:
+   - HTTP status code (`200 OK`)
+   - Remaining quota (`X-RateLimit-Remaining: 4`)
+   - Monotonic response latency in milliseconds
+   - Exact timestamp
+
+#### C. Testing Rate Limiting with Multiple Requests (Triggering HTTP 429)
+1. Select a client identifier (e.g., `alice`).
+2. In the **Batch / Rapid Request Test** panel, set the request count to **`6`** (or click the **`6 (Trigger 429)`** preset).
+3. Optionally adjust the delay slider (default: `150 ms`).
+4. Click **"Send Batch Requests"**.
+5. Observe the live sequential execution:
+   - Requests 1 through 5 succeed with `200 OK` and decreasing remaining quotas (`4`, `3`, `2`, `1`, `0`).
+   - Request 6 triggers `429 Too Many Requests`.
+   - The active **Countdown Banner** appears displaying the exact `Retry-After` seconds returned from the backend, counting down to window reset.
+
+#### D. Testing Client Quota Isolation
+1. While client `alice` is rate-limited (`429`), switch the **Client Identifier** to **`bob`** (click the preset `bob`).
+2. Click **"Send Request"**.
+3. Notice that `bob` immediately receives `200 OK` with `X-RateLimit-Remaining: 4`.
+4. This confirms per-client isolation: each client has an independent `5 requests / 10 seconds` window.
+
+#### E. Testing Missing / Blank Client ID Validation
+1. Click the **`[Blank Header]`** preset button or empty the input field.
+2. Click **"Send Request"**.
+3. The backend responds with `400 Bad Request` and `{"status":"error","message":"Missing or blank X-Client-ID header"}`.
+
+#### F. Filtering and Clearing History
+- Use the **Filter dropdown** above the history table to filter entries by `All Statuses`, `200 OK Only`, `429 Rate Limited Only`, or `Errors`.
+- Click **"Clear Log"** to reset the client-side statistics cards and table view.
+  > *Note*: Clearing the history only resets the frontend display; the backend's in-memory rate-limit state continues its fixed 10-second window lifecycle.
+
+---
+
+### 3. Integration & Architectural Notes
+
+- **Same-Origin Static Serving**: The frontend files (`index.html`, `style.css`, `script.js`) are served directly on `http://localhost:8080/` by registering a root context in `Main.java`. This guarantees same-origin access, eliminating browser CORS restrictions while accessing `/api` and `/health`.
+- **Zero Framework Footprint**: No React, Node.js, Webpack, or npm dependencies are required. The entire project remains pure Core Java with lightweight HTML/CSS/JS.
+- **Backend Integrity**: The core rate-limiting engine (`RateLimiterController.java`, `RateLimiterService.java`, `RateLimiterModel.java`, `RateLimiterView.java`) remains 100% untouched and preserved. Existing curl and Postman testing workflows continue to operate identically.
+
+---
+
 ## Sample HTTP Responses
 
 ### 1. Successful Request (HTTP 200 OK)
@@ -468,8 +549,8 @@ To modify the rate limit (for example, allowing 100 requests per 60 seconds on p
   Expose Prometheus-formatted metrics (`/metrics`) tracking total requests, accepted vs. rejected counts, and latencies.
 - **Automated Eviction**:
   Implement a scheduled cleanup worker (`ScheduledExecutorService`) to evict inactive client entries from memory to prevent unbounded map growth over time.
-- **Web Dashboard**:
-  Provide an interactive real-time HTML/WebSocket monitoring interface to observe client quotas and burst events visually.
+- **Web Dashboard** *(Implemented)*:
+  An interactive real-time HTML/CSS/Vanilla JS playground located in `frontend/` and served directly at `http://localhost:8080/`.
 
 ---
 
