@@ -3,31 +3,38 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>RateGuard — API Rate Limiting Playground</title>
-  <meta name="description" content="Interactive testing dashboard for RateGuard, a pure Java real-time fixed-window API rate limiter.">
+  <title>RateGuard — API Rate Limiting Dashboard</title>
+  <meta name="description" content="Production-grade testing dashboard for RateGuard, a pure Java real-time fixed-window API rate limiter with live diagnostics and downloadable audit logs.">
   <link rel="stylesheet" href="style.css">
   <link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 24 24%22 fill=%22%233b82f6%22><path d=%22M12 2L3 7v6c0 5.55 3.84 10.74 9 12 5.16-1.26 9-6.45 9-12V7l-9-5z%22/></svg>">
 </head>
 <body>
+  <!-- Toast Notification Container -->
+  <div class="toast-container" id="toastContainer" aria-live="polite" aria-atomic="true"></div>
+
   <div class="app-layout">
-    <!-- Header -->
+    <!-- Top Header -->
     <header class="app-header">
       <div class="header-left">
-        <div class="logo-shield">
-          <svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+        <div class="logo-shield" aria-hidden="true">
+          <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
             <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/>
             <path d="m9 12 2 2 4-4"/>
           </svg>
         </div>
         <div>
-          <h1 class="app-title">RateGuard — API Rate Limiting Playground</h1>
-          <p class="app-subtitle">Interactive Real-Time Fixed Window Testing Dashboard</p>
+          <div class="title-row">
+            <h1 class="app-title">RateGuard</h1>
+            <span class="version-tag">Core Java Engine</span>
+          </div>
+          <p class="app-subtitle">Real-Time Fixed Window Rate Limiting &bull; Zero External Dependencies</p>
         </div>
       </div>
+
       <div class="header-right">
         <div class="health-pill" id="healthPill" title="Server Health Status">
           <span class="health-dot" id="healthDot"></span>
-          <span class="health-text" id="healthText">Health: Unknown</span>
+          <span class="health-text" id="healthText">Health: Checking...</span>
         </div>
         <button id="btnHealth" class="btn btn-secondary btn-sm" type="button" title="Query /health endpoint">
           <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
@@ -51,7 +58,7 @@
       </div>
       <div class="policy-divider"></div>
       <div class="policy-item">
-        <span class="policy-label">WINDOW SIZE</span>
+        <span class="policy-label">WINDOW DURATION</span>
         <span class="policy-val highlight">10 Seconds</span>
       </div>
       <div class="policy-divider"></div>
@@ -61,8 +68,13 @@
       </div>
       <div class="policy-divider"></div>
       <div class="policy-item">
-        <span class="policy-label">TARGET ENDPOINT</span>
+        <span class="policy-label">PROTECTED ENDPOINT</span>
         <span class="policy-val"><code>GET /api</code></span>
+      </div>
+      <div class="policy-divider"></div>
+      <div class="policy-item">
+        <span class="policy-label">BACKEND ENGINE</span>
+        <span class="policy-val"><code>HttpServer :8080</code></span>
       </div>
     </section>
 
@@ -70,17 +82,17 @@
     <section class="metrics-grid" aria-label="Live Statistics">
       <div class="metric-card">
         <div class="metric-icon icon-total">
-          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 12h-4l-3 9L9 3l-3 9H2"/></svg>
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 12h-4l-3 9L9 3l-3 9H2"/></svg>
         </div>
         <div class="metric-content">
           <span class="metric-num" id="statTotal">0</span>
-          <span class="metric-desc">Total Requests Sent</span>
+          <span class="metric-desc">Total Requests</span>
         </div>
       </div>
 
       <div class="metric-card">
         <div class="metric-icon icon-success">
-          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="20 6 9 17 4 12"/></svg>
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="20 6 9 17 4 12"/></svg>
         </div>
         <div class="metric-content">
           <span class="metric-num text-success" id="statSuccess">0</span>
@@ -90,7 +102,7 @@
 
       <div class="metric-card">
         <div class="metric-icon icon-ratelimited">
-          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><line x1="4.93" y1="4.93" x2="19.07" y2="19.07"/></svg>
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><line x1="4.93" y1="4.93" x2="19.07" y2="19.07"/></svg>
         </div>
         <div class="metric-content">
           <span class="metric-num text-danger" id="statRateLimited">0</span>
@@ -100,21 +112,41 @@
 
       <div class="metric-card">
         <div class="metric-icon icon-errors">
-          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="m21.73 18-8-14a2 2 0 0 0-3.48 0l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.73-3Z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="m21.73 18-8-14a2 2 0 0 0-3.48 0l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.73-3Z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
         </div>
         <div class="metric-content">
           <span class="metric-num text-warning" id="statErrors">0</span>
-          <span class="metric-desc">Other Errors (4xx/5xx)</span>
+          <span class="metric-desc">Client Errors (4xx)</span>
+        </div>
+      </div>
+
+      <div class="metric-card">
+        <div class="metric-icon icon-server-error">
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="2" y="2" width="20" height="8" rx="2" ry="2"/><rect x="2" y="14" width="20" height="8" rx="2" ry="2"/><line x1="6" y1="6" x2="6.01" y2="6"/><line x1="6" y1="18" x2="6.01" y2="18"/></svg>
+        </div>
+        <div class="metric-content">
+          <span class="metric-num text-purple" id="statServerErrors">0</span>
+          <span class="metric-desc">Server / Network</span>
+        </div>
+      </div>
+
+      <div class="metric-card">
+        <div class="metric-icon icon-latency">
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
+        </div>
+        <div class="metric-content">
+          <span class="metric-num text-amber" id="statAvgLatency">—</span>
+          <span class="metric-desc">Avg Latency (ms)</span>
         </div>
       </div>
 
       <div class="metric-card">
         <div class="metric-icon icon-quota">
-          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 2v20M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/></svg>
         </div>
         <div class="metric-content">
           <span class="metric-num text-info" id="statRemainingQuota">—</span>
-          <span class="metric-desc" id="statRemainingDesc">Remaining Quota</span>
+          <span class="metric-desc" id="statRemainingDesc">Client Quota Left</span>
         </div>
       </div>
     </section>
@@ -126,35 +158,39 @@
         <div class="card-header">
           <h2 class="card-title">
             <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="2" y="3" width="20" height="14" rx="2" ry="2"/><line x1="8" y1="21" x2="16" y2="21"/><line x1="12" y1="17" x2="12" y2="21"/></svg>
-            Client & Request Dispatcher
+            Request Dispatcher &amp; Simulation
           </h2>
+          <span class="badge-status-pill">Ready</span>
         </div>
 
         <div class="card-body">
           <!-- Client ID Selection -->
           <div class="form-group">
-            <label for="clientIdInput" class="form-label">
-              Client Identifier (<code>X-Client-ID</code> header)
-              <span class="required-mark">*</span>
-            </label>
+            <div class="label-with-feedback">
+              <label for="clientIdInput" class="form-label">
+                Client Identifier (<code>X-Client-ID</code> header)
+                <span class="required-mark">*</span>
+              </label>
+              <span class="feedback-badge" id="clientIdFeedback">Valid Identifier</span>
+            </div>
             <div class="input-with-presets">
               <input type="text" id="clientIdInput" class="form-control" placeholder="e.g. alice, bob, payment-service" value="alice" autocomplete="off" spellcheck="false" maxlength="64">
             </div>
             <div class="client-presets" aria-label="Client Presets">
-              <span class="presets-label">Quick Client Presets:</span>
-              <button type="button" class="preset-badge" data-client="alice">alice</button>
-              <button type="button" class="preset-badge" data-client="bob">bob</button>
-              <button type="button" class="preset-badge" data-client="charlie">charlie</button>
-              <button type="button" class="preset-badge preset-blank" data-client="" title="Test 400 Bad Request">[Blank Header]</button>
+              <span class="presets-label">Quick Presets:</span>
+              <button type="button" class="preset-badge" data-client="alice" title="Switch to alice">alice</button>
+              <button type="button" class="preset-badge" data-client="bob" title="Switch to bob">bob</button>
+              <button type="button" class="preset-badge" data-client="charlie" title="Switch to charlie">charlie</button>
+              <button type="button" class="preset-badge preset-blank" data-client="" title="Test 400 Bad Request (empty header)">[Blank Header]</button>
             </div>
-            <p class="field-hint">Each client ID maintains an independent 5 requests / 10s counter in memory.</p>
+            <p class="field-hint">Backend maintains an independent 5 requests / 10s counter in memory per unique Client ID.</p>
           </div>
 
           <!-- Single Request Action -->
           <div class="action-section">
             <div class="action-header">
               <span class="action-title">Single Request Test</span>
-              <span class="action-subtitle">Issues one real GET /api call</span>
+              <span class="action-subtitle">Dispatches one live <code>GET /api</code> call with current headers</span>
             </div>
             <div class="btn-group">
               <button type="button" id="btnSendSingle" class="btn btn-primary">
@@ -168,8 +204,8 @@
           <!-- Multiple / Batch Request Action -->
           <div class="action-section">
             <div class="action-header">
-              <span class="action-title">Batch / Rapid Request Test</span>
-              <span class="action-subtitle">Send multiple sequential requests to test window thresholds</span>
+              <span class="action-title">Batch / Burst Request Test</span>
+              <span class="action-subtitle">Send sequential requests to test window thresholds and quota limits</span>
             </div>
 
             <div class="batch-controls">
@@ -179,18 +215,20 @@
                   <input type="number" id="batchCountInput" class="form-control" min="1" max="100" value="6" step="1">
                   <div class="batch-presets">
                     <button type="button" class="preset-count" data-count="5" title="Matches exact window quota">5 (Limit)</button>
-                    <button type="button" class="preset-count" data-count="6" title="Triggers 1 rate-limited request">6 (Trigger 429)</button>
+                    <button type="button" class="preset-count highlight-count" data-count="6" title="Exceeds limit by 1 (Triggers 429)">6 (Trigger 429)</button>
                     <button type="button" class="preset-count" data-count="10" title="Double window quota">10</button>
-                    <button type="button" class="preset-count" data-count="20">20</button>
+                    <button type="button" class="preset-count" data-count="20" title="Heavy burst">20</button>
                   </div>
                 </div>
               </div>
 
               <div class="form-group mb-3">
-                <label for="batchDelayInput" class="form-label">Delay between requests (ms):</label>
-                <div class="range-container">
-                  <input type="range" id="batchDelayInput" min="50" max="1000" step="50" value="150" class="form-range">
+                <div class="label-with-feedback">
+                  <label for="batchDelayInput" class="form-label">Delay between requests:</label>
                   <span id="delayVal" class="range-value">150 ms</span>
+                </div>
+                <div class="range-container">
+                  <input type="range" id="batchDelayInput" min="50" max="1000" step="50" value="150" class="form-range" aria-label="Delay between batch requests in milliseconds">
                 </div>
               </div>
 
@@ -199,7 +237,10 @@
                   <span class="btn-spinner" id="batchSpinner" aria-hidden="true"></span>
                   <span id="btnSendBatchText">Send Batch Requests</span>
                 </button>
-                <button type="button" id="btnStopBatch" class="btn btn-outline-danger" disabled>
+                <button type="button" id="btnStopBatch" class="btn btn-outline-danger" disabled title="Halt the currently running batch execution">
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor">
+                    <rect x="5" y="5" width="14" height="14" rx="2" ry="2"/>
+                  </svg>
                   Stop Batch
                 </button>
               </div>
@@ -209,7 +250,9 @@
                 <div class="progress-bar-bg">
                   <div class="progress-bar-fill" id="batchProgressBarFill"></div>
                 </div>
-                <div class="progress-text" id="batchProgressText">Idle</div>
+                <div class="progress-status-row">
+                  <span class="progress-text" id="batchProgressText">Idle</span>
+                </div>
               </div>
             </div>
           </div>
@@ -217,11 +260,11 @@
           <!-- Countdown / Retry-After Timer Banner -->
           <div class="countdown-banner" id="countdownBanner">
             <div class="countdown-icon">
-              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
+              <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
             </div>
             <div class="countdown-body">
-              <div class="countdown-title">Active Rate Limit Enforced</div>
-              <div class="countdown-msg" id="countdownMessage">Client is rate-limited. Window resets in approx: <strong id="countdownSeconds">0</strong>s</div>
+              <div class="countdown-title">Active Rate Limit Enforced (HTTP 429)</div>
+              <div class="countdown-msg" id="countdownMessage">Client quota exhausted. Window resets in approx: <strong id="countdownSeconds">0</strong>s</div>
             </div>
           </div>
 
@@ -272,34 +315,71 @@
 
           <!-- JSON Body Box -->
           <div class="inspector-section">
-            <div class="section-subheading">Response Body (JSON):</div>
-            <pre class="json-viewer" id="responseBodyViewer"><code>// Run a request to inspect the real server response here.</code></pre>
+            <div class="json-header-row">
+              <span class="section-subheading">Response Body (JSON):</span>
+              <button type="button" class="btn-copy" id="btnCopyJson" title="Copy raw JSON body">
+                <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>
+                Copy JSON
+              </button>
+            </div>
+            <pre class="json-viewer" id="responseBodyViewer"><code>// Dispatch a request to inspect the live backend response here.</code></pre>
           </div>
         </div>
       </section>
     </div>
 
-    <!-- Request History Section -->
-    <section class="card panel-history" aria-label="Request History">
+    <!-- Request History Section with Export Logs -->
+    <section class="card panel-history" aria-label="Request History and Export">
       <div class="card-header history-header">
         <div class="history-title-wrap">
           <h2 class="card-title">
             <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 8v4l3 3"/><circle cx="12" cy="12" r="9"/></svg>
-            Request History Log
+            Request History &amp; Audit Log
           </h2>
-          <span class="history-count" id="historyCounter">0 entries</span>
+          <span class="history-count" id="historyCounter">0 records</span>
         </div>
+
+        <!-- History Controls & Export Buttons -->
         <div class="history-actions">
-          <div class="filter-group">
-            <label for="filterStatus" class="sr-only">Filter by Status</label>
-            <select id="filterStatus" class="form-select form-select-sm">
+          <!-- Status Filter -->
+          <div class="filter-item">
+            <label for="filterStatus" class="filter-label">Status:</label>
+            <select id="filterStatus" class="form-select form-select-sm" aria-label="Filter logs by HTTP status">
               <option value="ALL">All Statuses</option>
-              <option value="200">200 OK Only</option>
-              <option value="429">429 Rate Limited Only</option>
-              <option value="ERROR">Errors (400, 405, Fail)</option>
+              <option value="200">200 OK (Permitted)</option>
+              <option value="429">429 Rate Limited</option>
+              <option value="4XX">4xx Client Errors (400, 405)</option>
+              <option value="5XX">5xx / Network Errors</option>
             </select>
           </div>
-          <button type="button" id="btnClearHistory" class="btn btn-secondary btn-sm" title="Clear table and reset frontend counters">
+
+          <!-- Client ID Filter -->
+          <div class="filter-item">
+            <label for="filterClient" class="filter-label">Client:</label>
+            <input type="text" id="filterClient" class="form-control form-control-sm" placeholder="Filter by Client ID..." aria-label="Filter logs by Client ID">
+          </div>
+
+          <!-- Export Actions Group -->
+          <div class="export-btn-group">
+            <button type="button" id="btnExportAllLogs" class="btn btn-export btn-sm" title="Download all recorded requests as a CSV file compatible with Microsoft Excel">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
+                <polyline points="7 10 12 15 17 10"/>
+                <line x1="12" y1="15" x2="12" y2="3"/>
+              </svg>
+              <span>Export All Logs (CSV)</span>
+            </button>
+
+            <button type="button" id="btnExportFilteredLogs" class="btn btn-export-secondary btn-sm" title="Download only the currently visible filtered requests as CSV">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <polygon points="22 3 2 3 10 12.46 10 19 14 21 14 12.46 22 3"/>
+              </svg>
+              <span>Export Filtered</span>
+            </button>
+          </div>
+
+          <!-- Clear Log Button -->
+          <button type="button" id="btnClearHistory" class="btn btn-secondary btn-sm" title="Clear table and reset browser-side counters (does not reset backend rate limit state)">
             <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg>
             Clear Log
           </button>
@@ -310,29 +390,48 @@
         <table class="history-table" id="historyTable">
           <thead>
             <tr>
-              <th scope="col" style="width: 60px;">#</th>
-              <th scope="col" style="width: 110px;">Time</th>
-              <th scope="col" style="width: 140px;">Client ID</th>
-              <th scope="col" style="width: 150px;">Status</th>
-              <th scope="col" style="width: 110px;">Remaining</th>
-              <th scope="col" style="width: 110px;">Latency</th>
-              <th scope="col">Backend Message / Details</th>
+              <th scope="col" style="width: 55px;">#</th>
+              <th scope="col" style="width: 105px;">Time</th>
+              <th scope="col" style="width: 130px;">Client ID</th>
+              <th scope="col" style="width: 100px;">Endpoint</th>
+              <th scope="col" style="width: 145px;">Status</th>
+              <th scope="col" style="width: 95px;">Remaining</th>
+              <th scope="col" style="width: 90px;">Latency</th>
+              <th scope="col">Backend Response Message &amp; Diagnostic Details</th>
             </tr>
           </thead>
           <tbody id="historyTableBody">
+            <!-- Initial Empty State -->
             <tr class="empty-row" id="emptyHistoryRow">
-              <td colspan="7">
+              <td colspan="8">
                 <div class="empty-state">
-                  <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
-                  <span>No requests logged yet. Use the controls above to start testing RateGuard.</span>
+                  <div class="empty-state-icon">
+                    <svg width="36" height="36" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
+                  </div>
+                  <div class="empty-state-title">No requests logged yet</div>
+                  <div class="empty-state-desc">Dispatch single or batch requests above to test RateGuard and build up your audit log.</div>
+                </div>
+              </td>
+            </tr>
+            <!-- Filtered Empty State -->
+            <tr class="empty-row filtered-empty-row" id="emptyFilteredRow" style="display: none;">
+              <td colspan="8">
+                <div class="empty-state">
+                  <div class="empty-state-icon">
+                    <svg width="36" height="36" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><polygon points="22 3 2 3 10 12.46 10 19 14 21 14 12.46 22 3"/></svg>
+                  </div>
+                  <div class="empty-state-title">No matching records found</div>
+                  <div class="empty-state-desc">No requests match the active filter criteria. Try adjusting the status or Client ID filter.</div>
                 </div>
               </td>
             </tr>
           </tbody>
         </table>
       </div>
+
       <div class="card-footer-note">
-        <span>Note: Clearing this log resets client-side counters only. The backend rate-limit state in memory continues to adhere to its 10-second fixed window.</span>
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><line x1="12" y1="16" x2="12" y2="12"/><line x1="12" y1="8" x2="12.01" y2="8"/></svg>
+        <span><strong>Storage &amp; State Note:</strong> Request history is maintained in browser memory. Exported CSV logs include full metadata and RFC 4180 escaping with spreadsheet formula injection protection. Clearing this view resets frontend counters only; the backend's thread-safe in-memory rate-limit state continues its 10-second fixed window lifecycle.</span>
       </div>
     </section>
 

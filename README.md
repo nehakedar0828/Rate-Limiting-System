@@ -19,7 +19,13 @@ A lightweight, zero-dependency, real-time HTTP API rate limiter built entirely w
 8. [Installation and Execution](#installation-and-execution)
 9. [API Documentation](#api-documentation)
 10. [Testing with curl](#testing-with-curl)
-11. [Web-Based Testing Dashboard (RateGuard Playground)](#web-based-testing-dashboard-rateguard-playground)
+11. [Web-Based Testing Dashboard & Downloadable CSV Logs](#web-based-testing-dashboard--downloadable-csv-logs)
+   - [Starting the Server and Accessing the Dashboard](#1-how-to-start-the-server-and-open-the-dashboard)
+   - [Interactive Dashboard Features & Testing Guide](#2-dashboard-features--how-to-test)
+   - [Downloadable Request Logs & CSV Export](#3-downloadable-request-logs--csv-export)
+   - [Live Statistics & Formula Calculation](#4-live-statistics--metric-calculation-model)
+   - [Memory Persistence & State Boundary](#5-memory-persistence--backend-state-boundary)
+   - [Integration & Architectural Notes](#6-integration--architectural-notes)
 12. [Sample HTTP Responses](#sample-http-responses)
 13. [Configuration](#configuration)
 14. [Limitations](#limitations)
@@ -361,76 +367,142 @@ curl -i -X POST -H "X-Client-ID: alice" http://localhost:8080/api
 
 ---
 
-## Web-Based Testing Dashboard (RateGuard Playground)
+## Web-Based Testing Dashboard & Downloadable CSV Logs
 
-RateGuard includes a browser-based developer dashboard located in `frontend/`, allowing users to test and visualize the rate limiter in real time without Postman or curl.
+RateGuard includes a modern, high-performance developer dashboard located in `frontend/`, providing real-time diagnostics, interactive rate-limiting simulations, and downloadable audit logs.
 
-The frontend is built with pure **HTML5, CSS3, and Vanilla JavaScript** (zero external frameworks or node dependencies) and is served directly by the Java `HttpServer` as a same-origin static context at `http://localhost:8080/`.
+The frontend is implemented in vanilla **HTML5, CSS3, and JavaScript** with zero external dependencies, frameworks, or build steps. It is served directly by the Core Java `HttpServer` as a same-origin static context at `http://localhost:8080/`.
+
+---
 
 ### 1. How to Start the Server and Open the Dashboard
 
-1. **Compile the Application** (from the project root):
+1. **Compile the Java Application** (from the project root):
    ```powershell
    javac -d out src\model\RateLimiterModel.java src\service\RateLimiterService.java src\view\RateLimiterView.java src\controller\RateLimiterController.java src\Main.java
    ```
 
-2. **Run the Java Server**:
+2. **Run the Server**:
    ```powershell
    java -cp out Main
    ```
 
-3. **Open the Dashboard**:
-   Navigate to [http://localhost:8080/](http://localhost:8080/) in any modern web browser (Chrome, Edge, Firefox, Safari).
+3. **Access the Dashboard**:
+   Open [http://localhost:8080/](http://localhost:8080/) in any modern web browser (Google Chrome, Microsoft Edge, Mozilla Firefox, or Apple Safari).
 
 ---
 
 ### 2. Dashboard Features & How to Test
 
-#### A. Server Health Check
-- Click the **"Check /health"** button in the top navigation bar.
-- The dashboard sends `GET /health` and updates the health status indicator to **"Health: UP (200 OK)"** with a pulsing green indicator.
-- The full JSON payload (`{"status":"UP","message":"RateGuard server is healthy"}`) appears in the **Live Response Inspector**.
+#### A. Live Server Health Indicator
+- Displays a continuous heartbeat indicator connected to `GET /health`.
+- Click **"Check /health"** to issue an on-demand probe. The pill updates to `Health: UP (200 OK)` with a pulsing green indicator.
+- Health checks do not consume rate-limit quota and do not affect client window counters.
 
-#### B. Testing a Single Request (`GET /api`)
-1. Enter a client ID in the **Client Identifier** field (or click one of the quick preset buttons: `alice`, `bob`, `charlie`).
-2. Click **"Send Request"** (or press <kbd>Enter</kbd>).
-3. The dashboard dispatches a real HTTP GET to `/api` with header `X-Client-ID: <id>`.
-4. The button temporarily disables during in-flight communication.
-5. The **Live Statistics**, **Live Response Inspector**, and **Request History Log** immediately update with:
-   - HTTP status code (`200 OK`)
-   - Remaining quota (`X-RateLimit-Remaining: 4`)
-   - Monotonic response latency in milliseconds
-   - Exact timestamp
+#### B. Single Request Dispatcher
+- Enter any client identifier in the **Client Identifier** field (e.g. `alice`, `bob`, or custom service names like `payment-gateway`).
+- An inline validation badge immediately verifies the input (`Valid Client (5 chars)` or `Blank (triggers 400)`).
+- Click **"Send Request"** or press <kbd>Enter</kbd> to issue an HTTP `GET /api` with the `X-Client-ID` header.
+- The button displays an inline loading spinner during flight and disables to prevent accidental double-clicks.
+- The **Live Response Inspector**, **Live Statistics**, and **Request History Log** update instantaneously with the actual server response.
 
-#### C. Testing Rate Limiting with Multiple Requests (Triggering HTTP 429)
-1. Select a client identifier (e.g., `alice`).
-2. In the **Batch / Rapid Request Test** panel, set the request count to **`6`** (or click the **`6 (Trigger 429)`** preset).
-3. Optionally adjust the delay slider (default: `150 ms`).
-4. Click **"Send Batch Requests"**.
-5. Observe the live sequential execution:
-   - Requests 1 through 5 succeed with `200 OK` and decreasing remaining quotas (`4`, `3`, `2`, `1`, `0`).
-   - Request 6 triggers `429 Too Many Requests`.
-   - The active **Countdown Banner** appears displaying the exact `Retry-After` seconds returned from the backend, counting down to window reset.
+#### C. Batch & Burst Rate Limiting Test (Triggering HTTP 429)
+- Test window threshold enforcement under rapid sequential traffic.
+- Configure request count (1 to 100) or click quick presets:
+  - `5 (Limit)`: Exactly exhausts the window quota.
+  - `6 (Trigger 429)`: Dispatches 5 permitted requests followed by 1 rate-limited request.
+  - `10` / `20`: Burst stress tests.
+- Adjust the inter-request delay slider (50 ms to 1000 ms, default: 150 ms).
+- Click **"Send Batch Requests"** to start. The visual progress bar tracks completion percentage.
+- Click **"Stop Batch"** at any time to immediately abort pending requests.
+- When an HTTP `429 Too Many Requests` is encountered, the dashboard activates a real-time **Countdown Banner** tracking the `Retry-After` seconds until the client's window resets.
 
-#### D. Testing Client Quota Isolation
-1. While client `alice` is rate-limited (`429`), switch the **Client Identifier** to **`bob`** (click the preset `bob`).
-2. Click **"Send Request"**.
-3. Notice that `bob` immediately receives `200 OK` with `X-RateLimit-Remaining: 4`.
-4. This confirms per-client isolation: each client has an independent `5 requests / 10 seconds` window.
-
-#### E. Testing Missing / Blank Client ID Validation
-1. Click the **`[Blank Header]`** preset button or empty the input field.
-2. Click **"Send Request"**.
-3. The backend responds with `400 Bad Request` and `{"status":"error","message":"Missing or blank X-Client-ID header"}`.
-
-#### F. Filtering and Clearing History
-- Use the **Filter dropdown** above the history table to filter entries by `All Statuses`, `200 OK Only`, `429 Rate Limited Only`, or `Errors`.
-- Click **"Clear Log"** to reset the client-side statistics cards and table view.
-  > *Note*: Clearing the history only resets the frontend display; the backend's in-memory rate-limit state continues its fixed 10-second window lifecycle.
+#### D. Live Response Inspector
+- Inspects real response headers: `X-RateLimit-Limit`, `X-RateLimit-Remaining`, `Retry-After`, `Content-Type`.
+- Displays round-trip monotonic latency in milliseconds and server timestamps.
+- Formats the raw backend JSON body with syntax-clean indentation.
+- Includes a **"Copy JSON"** button to copy payloads directly to the clipboard.
 
 ---
 
-### 3. Integration & Architectural Notes
+### 3. Downloadable Request Logs & CSV Export
+
+RateGuard features a client-side CSV export engine that creates standard, Excel-compatible audit logs directly from real recorded requests without requiring backend endpoints or external libraries.
+
+#### How to Export Logs
+
+1. **Export All Logs**:
+   - Click the prominent green **"Export All Logs (CSV)"** button in the Request History section.
+   - Downloads all recorded requests currently stored in browser memory, regardless of any active filter.
+   - Filename convention: `rateguard-logs-YYYY-MM-DD.csv` (e.g., `rateguard-logs-2026-10-19.csv`).
+
+2. **Export Filtered Logs**:
+   - Select a status filter (e.g., `429 Rate Limited Only`) or enter a Client ID search term.
+   - Click **"Export Filtered"**.
+   - Downloads only the records currently matching the active filter criteria.
+   - Filename convention: `rateguard-filtered-logs-YYYY-MM-DD.csv` (e.g., `rateguard-filtered-logs-2026-10-19.csv`).
+
+3. **Empty Log Protection**:
+   - If no records exist, clicking export displays a non-intrusive warning notification: *"No request records to export. Run tests to generate request logs."*
+
+#### CSV Column Definitions
+
+Every exported CSV file includes these exact 11 columns:
+
+| Column Header | Data Type | Description & Source | Example Value |
+|---|---|---|---|
+| `Request number` | Integer | Chronological sequence index of the request (#1, #2, ...) | `1` |
+| `Timestamp` | ISO 8601 String | High-precision UTC timestamp captured at request execution | `2026-10-19T14:30:00.123Z` |
+| `Client ID` | String | Client identifier passed in the `X-Client-ID` header | `alice` |
+| `HTTP method` | String | HTTP verb issued to the server | `GET` |
+| `Endpoint` | String | Request path evaluated by the backend | `/api` |
+| `HTTP status code` | Integer | Actual HTTP status code returned (200, 400, 405, 429, 0) | `200` |
+| `Status description` | String | Official HTTP status phrase | `OK`, `Too Many Requests` |
+| `Remaining quota` | String / Integer | Remaining requests allowed in window (`X-RateLimit-Remaining`) | `4`, `0`, `—` |
+| `Response time in milliseconds` | Integer | Round-trip request duration measured via `performance.now()` | `12` |
+| `Backend response message` | String | Primary message extracted from the server JSON response body | `Request permitted` |
+| `Error details, if any` | String | Error context, `Retry-After` seconds, or validation failures | `Quota exceeded. Retry-After: 10s` |
+
+#### Security & RFC 4180 Compliance
+
+- **Spreadsheet Formula Injection Prevention (CSV Injection)**:
+  Untrusted input values (such as malicious client headers or error strings) beginning with dangerous spreadsheet control characters (`=`, `+`, `-`, `@`, `\t`, or `\r`) are automatically prepended with a single quote (`'`). This prevents Microsoft Excel and LibreOffice Calc from interpreting text as executable formulas or DDE macro commands.
+- **Proper Escaping (RFC 4180)**:
+  Any field containing commas, quotation marks (`"`), or newlines is enclosed in double quotes. Internal double quotes are escaped as `""`.
+- **Microsoft Excel UTF-8 Compatibility**:
+  The exported Blob is prefixed with the UTF-8 Byte Order Mark (`\uFEFF`), ensuring Excel automatically opens the file with correct character encoding without mojibake.
+
+---
+
+### 4. Live Statistics & Metric Calculation Model
+
+The dashboard tracks key performance and rate-limiting metrics calculated from actual response payloads:
+
+$$\text{Total Requests} = \text{Permitted (200)} + \text{Rate Limited (429)} + \text{Client Errors (4xx)} + \text{Server Errors (5xx)} + \text{Network Errors}$$
+
+- **Permitted (200 OK)**: Count of requests with HTTP status code `200`.
+- **Rate Limited (429)**: Count of requests where quota was exhausted (`HTTP 429 Too Many Requests`).
+- **Client Errors (4xx)**: Requests returning `400 Bad Request` or `405 Method Not Allowed` (strictly excluding 429).
+- **Server / Network**: Requests returning 5xx or experiencing connection failures (status `0`).
+- **Average Latency**: Dynamically computed across all recorded requests:
+  $$\text{Average Latency} = \frac{\sum_{i=1}^{N} \text{latencyMs}_i}{N}$$
+- **Quota Remaining**: Live remaining quota for the active client extracted from `X-RateLimit-Remaining`.
+
+All metric categories are **mutually exclusive**—no request is double-counted.
+
+---
+
+### 5. Memory Persistence & Backend State Boundary
+
+- **Client-Side History**: Request history records are stored in browser memory during the active session. If the page is refreshed, the browser's visual history log and metric counters reset.
+- **Backend Rate-Limit State Independence**:
+  - The backend maintains rate-limiting buckets in JVM memory using a `ConcurrentHashMap<String, RateLimiterModel>`.
+  - Clicking **"Clear Log"** on the dashboard only resets the browser display and frontend counters.
+  - Clearing the log **does not** reset the server's rate-limiting window. If client `alice` is rate-limited on the server, she will remain rate-limited until the full 10-second fixed window elapses.
+
+---
+
+### 6. Integration & Architectural Notes
 
 - **Same-Origin Static Serving**: The frontend files (`index.html`, `style.css`, `script.js`) are served directly on `http://localhost:8080/` by registering a root context in `Main.java`. This guarantees same-origin access, eliminating browser CORS restrictions while accessing `/api` and `/health`.
 - **Zero Framework Footprint**: No React, Node.js, Webpack, or npm dependencies are required. The entire project remains pure Core Java with lightweight HTML/CSS/JS.
